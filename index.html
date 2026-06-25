@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Fine-tuning de Embeddings via LoRA — Apresentação</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #1a1a1a;
+    --muted: #555;
+    --accent: #2563eb;
+    --accent-soft: #dbeafe;
+    --green: #16a34a;
+    --red: #dc2626;
+    --grey: #9ca3af;
+    --card: #ffffff;
+    --border: #e5e7eb;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--fg);
+    overflow: hidden;
+    height: 100vh;
+  }
+  body.idle { cursor: none; }
+  .slide {
+    display: none;
+    flex-direction: column;
+    justify-content: flex-start;
+    width: 100vw; height: 100vh;
+    padding: 50px 80px 70px 80px;
+    animation: fadeIn 0.25s ease-out;
+    overflow: hidden;
+  }
+  .slide.active { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 38px; font-weight: 700; margin: 0 0 18px 0; line-height: 1.2; }
+  h1.title { font-size: 44px; }
+  h2 { font-size: 18px; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 24px 0; }
+  h3 { font-size: 22px; font-weight: 600; margin: 16px 0 8px 0; }
+  p { font-size: 20px; line-height: 1.55; margin: 8px 0; color: var(--fg); }
+  ul { font-size: 20px; line-height: 1.55; padding-left: 28px; }
+  ul li { margin: 8px 0; }
+  ul li b, ul li strong { color: var(--accent); }
+  .subtitle { font-size: 22px; color: var(--muted); margin-top: 8px; }
+  .author { margin-top: 60px; font-size: 18px; color: var(--muted); }
+  .author strong { color: var(--fg); }
+  .accent { color: var(--accent); font-weight: 600; }
+  .green { color: var(--green); font-weight: 600; }
+  .red { color: var(--red); font-weight: 600; }
+  .grey { color: var(--grey); }
+  .center { text-align: center; }
+  .flex-row { display: flex; gap: 32px; align-items: flex-start; }
+  .flex-row > div { flex: 1; }
+  table { border-collapse: collapse; width: 100%; font-size: 17px; margin-top: 12px; }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+  th { background: #f3f4f6; font-weight: 600; }
+  tr.highlight td { background: #ecfdf5; font-weight: 600; }
+  tr.regress td { background: #fef2f2; }
+  code, .mono { font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 16px; color: #8b1a1a; background: #fef3f2; padding: 1px 6px; border-radius: 3px; }
+  .quote {
+    border-left: 4px solid var(--accent);
+    padding: 8px 16px; margin: 12px 0;
+    color: var(--muted); font-style: italic;
+    background: var(--accent-soft);
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 10px 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card.pos { border-left: 4px solid var(--green); }
+  .card.neg { border-left: 4px solid var(--red); }
+  .card.ask { border-left: 4px solid var(--accent); }
+  .card .label { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: var(--muted); }
+  .card.pos .label { color: var(--green); }
+  .card.neg .label { color: var(--red); }
+  .card.ask .label { color: var(--accent); }
+  .card p { font-size: 17px; margin: 4px 0; }
+  img.fig { max-width: 100%; max-height: 65vh; display: block; margin: 12px auto; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  img.fig.tall { max-height: 70vh; }
+  .big-stat {
+    font-size: 64px; font-weight: 700; color: var(--accent);
+    display: block; line-height: 1;
+  }
+  .stat-label { font-size: 16px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .stat-block { display: inline-block; text-align: center; margin: 12px 16px; padding: 16px 22px; background: white; border-radius: 8px; border: 1px solid var(--border); }
+  .pipeline { display: flex; gap: 12px; align-items: center; justify-content: center; margin: 24px 0; flex-wrap: wrap; }
+  .pipeline .step {
+    background: white; border: 2px solid var(--accent); border-radius: 8px;
+    padding: 12px 20px; font-weight: 600; color: var(--accent);
+    min-width: 130px; text-align: center;
+  }
+  .pipeline .arrow { color: var(--accent); font-size: 28px; font-weight: 300; }
+  .footnote { font-size: 13px; color: var(--muted); margin-top: 14px; padding-top: 8px; border-top: 1px dashed var(--border); font-style: italic; }
+
+  /* RAG diagram */
+  .rag-flow { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 24px auto; flex-wrap: wrap; max-width: 900px; }
+  .rag-flow .node {
+    background: white; border: 2px solid var(--accent); border-radius: 8px;
+    padding: 14px 18px; text-align: center; min-width: 110px;
+  }
+  .rag-flow .node.user { border-color: var(--green); color: var(--green); }
+  .rag-flow .node.answer { border-color: var(--green); color: var(--green); }
+  .rag-flow .node.embed { border-color: var(--accent); color: var(--accent); }
+  .rag-flow .node.llm { border-color: #9333ea; color: #9333ea; }
+  .rag-flow .node b { display: block; font-size: 14px; }
+  .rag-flow .node small { color: var(--muted); font-size: 12px; }
+  .rag-flow .arrow { color: var(--muted); font-size: 24px; }
+
+  /* Navigation */
+  .nav {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 12px; align-items: center;
+    background: white; padding: 8px 16px; border-radius: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 100;
+    transition: opacity 0.4s ease;
+  }
+  body.idle .nav { opacity: 0; pointer-events: none; }
+  .nav button {
+    background: none; border: none; cursor: pointer;
+    font-size: 18px; color: var(--accent); padding: 4px 10px;
+    border-radius: 4px;
+  }
+  .nav button:hover { background: var(--accent-soft); }
+  .nav button:disabled { opacity: 0.3; cursor: default; }
+  .nav .counter { font-size: 14px; color: var(--muted); font-weight: 500; min-width: 50px; text-align: center; }
+
+  .progress {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: var(--accent); transition: width 0.25s ease-out;
+    z-index: 100;
+  }
+  .hint {
+    position: fixed; bottom: 18px; right: 24px;
+    font-size: 12px; color: var(--muted);
+    z-index: 100;
+    transition: opacity 0.4s ease;
+  }
+  body.idle .hint { opacity: 0; }
+
+  /* References modal */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 200;
+    justify-content: center; align-items: center;
+    padding: 40px;
+  }
+  .modal-overlay.active { display: flex; cursor: auto; }
+  body.idle .modal-overlay.active { cursor: auto; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 36px 40px;
+    max-width: 900px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    position: relative;
+  }
+  .modal h2 { margin-top: 0; font-size: 16px; }
+  .modal h3 { font-size: 26px; margin: 4px 0 18px 0; }
+  .modal .ref-list { font-size: 15px; line-height: 1.55; color: var(--fg); }
+  .modal .ref-list p { font-size: 15px; margin: 12px 0; padding-left: 22px; text-indent: -22px; }
+  .modal-close {
+    position: absolute;
+    top: 12px; right: 16px;
+    background: none; border: none; font-size: 28px;
+    cursor: pointer; color: var(--muted);
+  }
+  .modal-close:hover { color: var(--fg); }
+  .btn-refs {
+    display: inline-block; margin-top: 24px;
+    background: var(--accent); color: white;
+    border: none; padding: 12px 28px; font-size: 16px;
+    border-radius: 24px; cursor: pointer; font-weight: 600;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn-refs:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- ====== 1: TITLE ====== -->
+<section class="slide active">
+  <h2>SIN5032 — Trabalho Prático 2</h2>
+  <h1 class="title">Fine-tuning de Embeddings via LoRA<br>para Busca Vetorial em Domínio Nichado</h1>
+  <p class="subtitle">A estratégia de geração de dataset supervisionado importa mais que o método de treino.</p>
+  <div class="author">
+    <strong>Guilherme de Almeida José</strong> &nbsp;&middot;&nbsp; 18006632<br>
+    guilherme.alj@gmail.com &nbsp;&middot;&nbsp; Junho/2026
+  </div>
+</section>
+
+<!-- ====== 2: O QUE E RAG ====== -->
+<section class="slide">
+  <h2>0. Background</h2>
+  <h1>O que é um sistema RAG?</h1>
+  <!-- <p style="font-size: 18px; margin: 4px 0;"><b>RAG</b> = <i>Retrieval-Augmented Generation</i>. A LLM busca passagens relevantes num corpus externo e usa essas passagens como contexto pra responder. <b>O retriever (modelo de embedding) é o gargalo</b>: se ele não trouxer a passagem certa, a LLM não responde — por mais capaz que seja.</p> -->
+  <div class="rag-flow" style="margin: 8px auto;">
+    <div class="node user"><b>Query</b><small>"como faço X?"</small></div>
+    <span class="arrow">→</span>
+    <div class="node embed"><b>Embedding<br>model</b><small>encoder</small></div>
+    <span class="arrow">→</span>
+    <div class="node embed"><b>Vector DB</b><small>top-K passagens</small></div>
+    <span class="arrow">→</span>
+    <div class="node llm"><b>LLM</b><small>com contexto</small></div>
+    <span class="arrow">→</span>
+    <div class="node answer"><b>Resposta</b></div>
+  </div>
+  <!-- <p style="font-size: 17px; margin: 2px 0; text-align: center;">O retriever projeta query e passagens num <b>espaço vetorial</b> onde distância = similaridade semântica. Termos parecidos ficam próximos:</p> -->
+  <img src="word_embeddings_visualization.png" alt="2D word embeddings" style="display: block; margin: 4px auto 0 auto; max-width: 90%; max-height: 60vh; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+  <p class="footnote" style="text-align: center; margin: 2px 0 0 0; padding-top: 4px;">Fonte da figura: web.engr.oregonstate.edu/~huanlian/teaching/ML (visualização 2D clássica de word embeddings).</p>
+</section>
+
+<!-- ====== 3: HIPOTESE DOMINIO NICHADO ====== -->
+<section class="slide">
+  <h2>1. Hipótese inicial</h2>
+  <h1>E em domínios nichados?</h1>
+  <p><b>Hipótese de trabalho:</b> modelos de embedding pré-treinados em corpora genéricos (web, livros) <i>podem</i> ter dificuldade em domínios fechados com vocabulário próprio, gírias e ambiguidade contextual.</p>
+  <p><b>Caso de estudo:</b> servidor LATAM de Ragnarok Online — MMORPG com comunidade brasileira ativa no Discord oficial, terminologia altamente especializada (Kafra, refino, MVP, dupe, rebornar, etc.).</p>
+  <p style="margin-top: 24px;">A hipótese é razoável, mas <b>precisamos de evidência</b>. Antes de tentar fine-tunar qualquer coisa, fizemos uma <span class="accent">exploração da base no EP01</span> para verificar se há sinais concretos dessa dificuldade.</p>
+</section>
+
+<!-- ====== 4: OOV (analise lexica) ====== -->
+<section class="slide">
+  <h2>1. Hipótese — análise 1</h2>
+  <h1>OOV: vocabulário fora do treino</h1>
+  <p>Análise <b>léxica</b>: quantas palavras únicas do corpus o tokenizador de um BERT em português trataria como <i>out-of-vocabulary</i>?</p>
+  <div style="text-align: center; margin: 24px 0;">
+    <div class="stat-block">
+      <span class="big-stat">~50%</span>
+      <span class="stat-label">palavras OOV (uni-token)</span>
+    </div>
+  </div>
+  <p><b>Top OOV mais frequentes:</b> <code>latam</code>, <code>tbm</code>, <code>kkk</code>, <code>kafra</code>, <code>rufio</code>, <code>npc</code>, <code>refino</code>, <code>prontera</code>, <code>dupe</code>, <code>woe</code>, <code>vcs</code>...</p>
+  <p>São exatamente termos do jogo (e gírias de chat). Para o encoder, vira combinação arbitrária de subtokens — perde o significado domínio-específico.</p>
+  <p class="footnote">Algoritmo desenvolvido para esta análise: uma palavra é considerada <b>in-vocabulary</b> se (a) o tokenizador do BERTimbau (BERT pt-BR) a mapeia em <i>um único token</i>, ou (b) ela aparece no dicionário pt-BR da NLTK (com normalização de acentos). Caso contrário, classificada como OOV. Critério é estrito mas suficiente para sinalizar gap léxico.</p>
+</section>
+
+<!-- ====== 5: TERMOS AMBIGUOS (analise semantica) ====== -->
+<section class="slide">
+  <h2>1. Hipótese — análise 2</h2>
+  <h1>Termos ambíguos: mesmo léxico, sentido diferente</h1>
+  <p>Análise <b>semântica</b>, separada da OOV: palavras que <b>estão no vocabulário</b> dos modelos pré-treinados, mas mudam radicalmente de sentido dentro do jogo. Comparamos vizinhos por embeddings genéricos vs vizinhos por <b>PMI</b> dentro do corpus.</p>
+  <table>
+    <thead><tr><th>Termo</th><th>Sentido geral (embedding)</th><th>Sentido no Ragnarok (PMI)</th></tr></thead>
+    <tbody>
+      <tr><td><code>ovo</code></td><td>comida, ouve, opa</td><td>item de gacha (loot box)</td></tr>
+      <tr><td><code>carta</code></td><td>papel, cartão</td><td>item raro com efeitos</td></tr>
+      <tr><td><code>galho</code></td><td>botânica, ramo</td><td>item de invocação de monstro</td></tr>
+      <tr><td><code>freya</code></td><td>divindade nórdica</td><td>nome de servidor</td></tr>
+      <tr><td><code>refino</code></td><td>refino genérico</td><td>upgrade numerado (+4, +7, +10)</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top: 16px;"><b>Insight:</b> mesmo termos que o encoder "conhece" são mapeados para a região errada do espaço vetorial. Junto com o OOV alto, isto sustenta a hipótese de que <b>fine-tuning deveria ajudar</b>.</p>
+</section>
+
+<!-- ====== 6: ANIMACAO - O QUE O FINE-TUNING OTIMIZA ====== -->
+<section class="slide">
+  <h2>1. Intuição visual</h2>
+  <h1>O que o fine-tuning está tentando otimizar?</h1>
+  <p>Considere os termos <b>"galho seco"</b>, <b>"árvore"</b> e <b>"monstro"</b>. Por similaridade léxica/textual, um encoder genérico aproxima <i>galho seco ~ árvore</i> (ambos botânicos). Mas no Ragnarok, <b>"galho seco" é um item que invoca um monstro aleatório</b> — semanticamente, no domínio, ele está muito mais próximo de <i>monstro</i>.</p>
+  <svg viewBox="0 0 600 280" style="display: block; margin: 10px auto; max-width: 70%; max-height: 38vh; background: #f8fafc; border-radius: 8px;">
+    <!-- Eixos -->
+    <line x1="30" y1="250" x2="570" y2="250" stroke="#cbd5e1" stroke-width="1"/>
+    <line x1="30" y1="250" x2="30" y2="20" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="540" y="270" font-size="11" fill="#94a3b8" font-family="sans-serif">dim 1</text>
+    <text x="40" y="20" font-size="11" fill="#94a3b8" font-family="sans-serif">dim 2</text>
+
+    <!-- Legenda dinâmica de fase (discrete toggle, sem crossfade) -->
+    <text x="300" y="30" font-size="15" font-weight="700" fill="#2563eb" text-anchor="middle" font-family="sans-serif">encoder genérico — galho seco ~ árvore<animate attributeName="opacity" values="1;0;1" keyTimes="0;0.45;0.92" calcMode="discrete" dur="7s" repeatCount="indefinite"/></text>
+    <text x="300" y="30" font-size="15" font-weight="700" fill="#16a34a" text-anchor="middle" font-family="sans-serif">após fine-tuning — galho seco ~ monstro<animate attributeName="opacity" values="0;1;0" keyTimes="0;0.45;0.92" calcMode="discrete" dur="7s" repeatCount="indefinite"/></text>
+
+    <!-- ARVORE (móvel: começa perto, fim longe) -->
+    <g>
+      <circle r="11" fill="#16a34a" stroke="white" stroke-width="2">
+        <animate attributeName="cx" values="420;420;480;480;420" dur="7s" repeatCount="indefinite" keyTimes="0;0.35;0.55;0.85;1"/>
+        <animate attributeName="cy" values="110;110;60;60;110" dur="7s" repeatCount="indefinite" keyTimes="0;0.35;0.55;0.85;1"/>
+      </circle>
+      <text font-size="14" fill="#1a1a1a" font-family="sans-serif" font-weight="600">
+        árvore
+        <animate attributeName="x" values="438;438;498;498;438" dur="7s" repeatCount="indefinite" keyTimes="0;0.35;0.55;0.85;1"/>
+        <animate attributeName="y" values="114;114;64;64;114" dur="7s" repeatCount="indefinite" keyTimes="0;0.35;0.55;0.85;1"/>
+      </text>
+    </g>
+
+    <!-- GALHO SECO (móvel: começa perto da árvore, fim perto do monstro) -->
+    <g>
+      <circle r="11" fill="#2563eb" stroke="white" stroke-width="2">
+        <animate attributeName="cx" values="380;380;160;160;380" dur="7s" repeatCount="indefinite" keyTimes="0;0.35;0.55;0.85;1"/>
+        <animate attributeName="cy" values="90;90;200;200;90" dur="7s" repeatCount="indefinite" keyTimes="0;0.35;0.55;0.85;1"/>
+      </circle>
+      <text font-size="14" fill="#1a1a1a" font-family="sans-serif" font-weight="600">
+        galho seco
+        <animate attributeName="x" values="398;398;178;178;398" dur="7s" repeatCount="indefinite" keyTimes="0;0.35;0.55;0.85;1"/>
+        <animate attributeName="y" values="94;94;204;204;94" dur="7s" repeatCount="indefinite" keyTimes="0;0.35;0.55;0.85;1"/>
+      </text>
+    </g>
+
+    <!-- MONSTRO (estático) -->
+    <g>
+      <circle cx="130" cy="220" r="11" fill="#dc2626" stroke="white" stroke-width="2"/>
+      <text x="148" y="224" font-size="14" fill="#1a1a1a" font-family="sans-serif" font-weight="600">monstro</text>
+    </g>
+  </svg>
+  <p style="text-align: center; color: var(--muted); font-size: 16px; margin-top: 4px;">A função de custo (MNRL) empurra pares (pergunta, pílula correta) a ficarem próximos no espaço; pares com pílula errada, a ficarem distantes. Visualmente: é exatamente esse rearranjo que o fine-tuning aprende.</p>
+</section>
+
+<!-- ====== 7: HEAP'S LAW ====== -->
+<section class="slide">
+  <h2>1. Hipótese — análise 3</h2>
+  <h1>Vocabulário em crescimento contínuo</h1>
+  <img class="fig" src="figures/fig1_eda.png" alt="EDA">
+  <p style="text-align: center; color: var(--muted); margin-top: 12px;">
+    Pílulas curtas (mediana 165 chars). Lei de Heaps β = 0.68 (≫ 0.5) → vocabulário <b>não-saturado</b>. Eventos sazonais e atualizações do jogo continuam introduzindo termos novos que um modelo congelado não tratará bem.
+  </p>
+</section>
+
+<!-- ====== 7: QUESTAO ORIGINAL ====== -->
+<section class="slide">
+  <h2>2. Questão de pesquisa</h2>
+  <h1>Versão original (EP1)</h1>
+  <div class="quote" style="font-size: 22px;">
+    "Em sistemas de busca vetorial por similaridade para <b>domínios nichados</b>, modelos de embedding <b>ajustados finamente</b> podem melhorar a performance da busca?"
+  </div>
+  <p style="margin-top: 24px;">Com a hipótese sustentada pela exploração (OOV alto, termos ambíguos, vocabulário em crescimento), a questão se torna respondível por experimento. Spoiler: a resposta é <span class="accent">condicional</span> — depende fortemente de como o dataset supervisionado é construído. A questão será <b>refinada mais adiante</b> (após observar um resultado contra-intuitivo).</p>
+</section>
+
+<!-- ====== 8: CONSTRUCAO DATASET V1 ====== -->
+<section class="slide">
+  <h2>3. Construção do dataset</h2>
+  <h1>Dataset V1 — abordagem inicial</h1>
+  <ul>
+    <li><b>Corpus</b>: 576k mensagens do Discord → limpeza (dedup, repetição, near-dup) → 1.693 <b>pílulas de conhecimento</b> condensadas via LLM (unidades atômicas de informação, sem ruído de chat).</li>
+    <li><b>Perguntas sintéticas (V1)</b>: para cada pílula, prompt simples ao LLM:
+      <div class="quote" style="font-size: 17px; margin: 8px 0 8px 28px;">"Você é especialista em Ragnarok. Gere uma pergunta criativa sobre este texto, evitando copy-paste."</div>
+    </li>
+    <li><b>Resultado</b>: 1.693 pares <code>(pergunta, pílula)</code>. Split temporal P80 → <b>1.354 treino</b>, <b>339 teste</b>.</li>
+  </ul>
+  <p style="margin-top: 16px; padding: 12px 16px; background: #fef9c3; border-radius: 6px;"><b>Por que sintético?</b> Em queries reais é difícil construir pares <code>(pergunta, pílula-correta)</code> sem rotulagem manual cara. Sintético permite controle total: cada pílula tem uma pergunta direcionada a ela, e mais tarde, pares positivo/negativo bem definidos.</p>
+</section>
+
+<!-- ====== 10: PIPELINE OVERVIEW (apenas V1 inicialmente) ====== -->
+<section class="slide">
+  <h2>3. Pipeline inicial</h2>
+  <h1>Overview do experimento — primeira tentativa</h1>
+  <div class="pipeline">
+    <div class="step">Discord<br><small>576k msgs</small></div>
+    <span class="arrow">→</span>
+    <div class="step">Pílulas<br><small>1.693</small></div>
+    <span class="arrow">→</span>
+    <div class="step">Dataset V1<br><small>1 prompt simples</small></div>
+    <span class="arrow">→</span>
+    <div class="step">LoRA<br><small>+ MNRL</small></div>
+    <span class="arrow">→</span>
+    <div class="step">Avaliação<br><small>test sintético V1</small></div>
+  </div>
+  <h3 style="margin-top: 18px;">Split temporal das pílulas (P80)</h3>
+  <div style="text-align: center;">
+    <div class="stat-block"><span class="big-stat" style="font-size:48px;">1.354</span><span class="stat-label">treino V1</span></div>
+    <div class="stat-block"><span class="big-stat" style="font-size:48px;">339</span><span class="stat-label">teste sintético V1</span></div>
+  </div>
+  <p style="text-align: center; margin-top: 16px; color: var(--muted);">Split temporal estrito (treino até 2025-12-04, teste após) — zero leakage. <b>Próximos slides:</b> rodamos esse pipeline, vemos um resultado bom, mas desconfiamos. Aí construímos um test de queries reais e descobrimos um problema — que motiva uma <span class="accent">V2</span> do dataset.</p>
+</section>
+
+<!-- ====== 10: SETUP TECNICO ====== -->
+<section class="slide">
+  <h2>4. Materiais & métodos</h2>
+  <h1>Setup experimental</h1>
+  <div class="flex-row">
+    <div>
+      <h3>Modelos avaliados</h3>
+      <ul>
+        <li><code>BGE-M3</code> (foco, 1024 dims, open-source SOTA)</li>
+        <li><code>text-embedding-3-large</code> (OpenAI, baseline closed)</li>
+        <li><code>MiniLM-L12-v2</code> (compacto, referência leve)</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Técnica de fine-tuning</h3>
+      <ul>
+        <li><b>LoRA</b>: r=8, α=32, target='all-linear'</li>
+        <li><b>Loss</b>: MultipleNegativesRankingLoss</li>
+        <li><b>Hyperparams</b>: 2 epochs, batch efetivo 32, lr=1e-4</li>
+        <li><b>Seed</b>: 42 em tudo (reproduzível)</li>
+      </ul>
+    </div>
+  </div>
+  <h3 style="margin-top: 16px;">Avaliação</h3>
+  <ul>
+    <li><b>Métricas</b>: Recall@1/5/10 + MRR (padrão BEIR).</li>
+    <li><b>Comparação</b>: bootstrap pareado, B=1000, CI 95%.</li>
+    <li><b>Hardware</b>: RTX 4070 Laptop (8 GB VRAM).</li>
+  </ul>
+</section>
+
+<!-- ====== 10.5: METRICAS - RECALL@K e MRR ====== -->
+<section class="slide">
+  <h2>4. Como medimos</h2>
+  <h1>Recall@K e MRR — métricas de retrieval</h1>
+  <p style="margin: 0 0 10px 0; font-size: 18px; color: var(--muted);">Toda métrica olha pra <b>onde o gold apareceu</b> na lista que o retriever devolveu.</p>
+
+  <div class="flex-row" style="gap: 28px; margin-top: 8px;">
+
+    <!-- Esquerda: Recall@K -->
+    <div>
+      <h3 style="margin-top: 0;">Recall@K</h3>
+      <p style="font-size: 17px; margin: 4px 0;"><b>"O gold está nos top-K?"</b> Binário por query (1 = sim, 0 = não). Média entre queries = % de cobertura.</p>
+
+      <div style="background: white; border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin-top: 10px;">
+        <p style="font-size: 14px; color: var(--muted); margin: 0 0 6px 0;">Query: <i>"como faço X?"</i> — modelo devolveu top-5:</p>
+        <ol style="padding-left: 24px; margin: 0; font-size: 16px;">
+          <li>doc A <span class="grey">(não é o gold)</span></li>
+          <li>doc B <span class="grey">(não é o gold)</span></li>
+          <li style="background: #ecfdf5; padding: 2px 4px; border-radius: 3px;"><b style="color: var(--green);">▶ GOLD (rank 3)</b></li>
+          <li>doc C</li>
+          <li>doc D</li>
+        </ol>
+        <p style="font-size: 15px; margin: 8px 0 0 0;">
+          <span class="red">R@1 = 0</span> &nbsp;|&nbsp; <span class="green">R@5 = 1</span> &nbsp;|&nbsp; <span class="green">R@10 = 1</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Direita: MRR -->
+    <div>
+      <h3 style="margin-top: 0;">MRR (Mean Reciprocal Rank)</h3>
+      <p style="font-size: 17px; margin: 4px 0;"><b>RR = 1/rank do gold</b>. MRR = média de RR entre queries. Penaliza posição: gold em #1 vale <b>5×</b> mais que gold em #5.</p>
+
+      <table style="margin-top: 10px; font-size: 16px;">
+        <thead><tr><th>Query</th><th>Rank do gold</th><th>RR = 1/rank</th></tr></thead>
+        <tbody>
+          <tr><td>q1</td><td>1</td><td><b>1.000</b></td></tr>
+          <tr><td>q2</td><td>5</td><td>0.200</td></tr>
+          <tr><td>q3</td><td>não veio (∞)</td><td>0.000</td></tr>
+          <tr style="background: var(--accent-soft);"><td><b>MRR =</b></td><td><span class="grey">média</span></td><td><b style="color: var(--accent);">0.400</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p style="margin-top: 14px; padding: 10px 14px; background: var(--accent-soft); border-radius: 6px; text-align: center; font-size: 16px;">
+    <b>R@K</b> mede cobertura (achou ou não nos top-K). <b>MRR</b> mede qualidade do ranking (achou em qual posição). Reportar ambos = visão completa.
+  </p>
+</section>
+
+<!-- ====== 11: BASELINES ====== -->
+<section class="slide">
+  <h2>5. Resultados</h2>
+  <h1>Baselines (sem fine-tuning) em test-v1</h1>
+  <table>
+    <thead><tr><th>Modelo</th><th>R@1</th><th>R@5</th><th>R@10</th><th>MRR</th></tr></thead>
+    <tbody>
+      <tr><td>MiniLM-L12-v2</td><td>0.366</td><td>0.581</td><td>0.673</td><td>0.457</td></tr>
+      <tr><td>BAAI/bge-m3</td><td>0.643</td><td>0.850</td><td>0.909</td><td><b>0.732</b></td></tr>
+      <tr><td>OpenAI text-embedding-3-large</td><td>0.652</td><td>0.900</td><td>0.932</td><td><b>0.755</b></td></tr>
+    </tbody>
+  </table>
+  <ul style="margin-top: 20px;">
+    <li>OpenAI lidera marginalmente (+2.3 pp MRR vs BGE-M3).</li>
+    <li>BGE-M3 será nosso candidato para fine-tuning (open-source, treinável em GPU local).</li>
+  </ul>
+</section>
+
+<!-- ====== 12: V1 EM SINTETICO ====== -->
+<section class="slide">
+  <h2>5. Resultados</h2>
+  <h1>V1-tuned — sucesso no test sintético</h1>
+  <table>
+    <thead><tr><th>BGE-M3</th><th>R@1</th><th>R@5</th><th>R@10</th><th>MRR</th><th>Δ MRR</th></tr></thead>
+    <tbody>
+      <tr><td>baseline</td><td>0.643</td><td>0.850</td><td>0.909</td><td>0.732</td><td>—</td></tr>
+      <tr class="highlight"><td>V1-tuned</td><td>0.746</td><td>0.935</td><td>0.973</td><td><b>0.825</b></td><td class="green"><b>+12.7%</b></td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top: 24px;">Primeira leitura: <span class="green">hipótese confirmada com folga</span>. BGE-M3 fine-tuned (0.825) supera <b>até o baseline OpenAI</b> (0.755).</p>
+  <p style="margin-top: 16px; padding: 16px; background: #fff7ed; border-left: 4px solid #ea580c; border-radius: 4px;"><b>Mas algo cheira mal.</b> O ganho parece grande demais. E o test set foi gerado pela mesma técnica que o treino — pode estar enviesado a favor do modelo. Decidimos validar com um <b>teste independente</b>: queries reais do Discord.</p>
+</section>
+
+<!-- ====== 12.5: TEST SET REAL - PIPELINE DE CONSTRUCAO ====== -->
+<section class="slide">
+  <h2>5. Validação independente</h2>
+  <h1>Como construímos o test set de queries reais</h1>
+  <p style="margin: 0 0 8px 0; font-size: 17px; color: var(--muted);">Pipeline de funil: <b>576k msgs do Discord → 148 queries com gold validado humanamente.</b></p>
+
+  <div class="pipeline" style="margin: 14px 0; gap: 8px;">
+    <div class="step" style="min-width: 110px; padding: 8px 12px;"><b>1.</b> Filtragem heurística<br><small>regex pergunta</small></div>
+    <span class="arrow">→</span>
+    <div class="step" style="min-width: 110px; padding: 8px 12px;"><b>2.</b> 2× LLM local<br><small>Qwen 2.5 7B</small></div>
+    <span class="arrow">→</span>
+    <div class="step" style="min-width: 110px; padding: 8px 12px;"><b>3.</b> Top-30 OpenAI<br><small>retriever externo</small></div>
+    <span class="arrow">→</span>
+    <div class="step" style="min-width: 110px; padding: 8px 12px;"><b>4.</b> LLM-as-judge<br><small>Gemini 3.5 + 2.5</small></div>
+    <span class="arrow">→</span>
+    <div class="step" style="min-width: 110px; padding: 8px 12px;"><b>5.</b> Validação humana<br><small>1-a-1</small></div>
+  </div>
+
+  <div class="flex-row" style="gap: 14px; margin-top: 8px;">
+    <div class="card" style="padding: 10px 14px; margin: 0;">
+      <div class="label" style="color: var(--accent);">Etapas 1–2 (filtros)</div>
+      <p style="font-size: 14px; margin: 4px 0;">Regex pega <b>estrutura interrogativa</b>. Qwen 2.5 7B (Ollama, local) faz 2 passes semânticos: <b>in-game</b> (é sobre o jogo?) + <b>self-contained</b> (responde sem contexto?).</p>
+    </div>
+    <div class="card" style="padding: 10px 14px; margin: 0;">
+      <div class="label" style="color: var(--accent);">Etapa 3 (retriever externo)</div>
+      <p style="font-size: 14px; margin: 4px 0;">OpenAI <code style="font-size:12px;">text-embedding-3-large</code> traz os <b>top-30 candidatos</b> por similaridade. Usar OpenAI (e <b>não BGE-M3</b>) evita viés circular na avaliação posterior.</p>
+    </div>
+    <div class="card" style="padding: 10px 14px; margin: 0;">
+      <div class="label" style="color: var(--accent);">Etapa 4 (LLM judge)</div>
+      <p style="font-size: 14px; margin: 4px 0;"><b>Fase 1</b>: Gemini 3.5 Flash em 200 queries → 66 matched. <b>Fase 2</b>: Gemini 2.5 Flash em 300 queries → 156 matched.</p>
+    </div>
+    <div class="card" style="padding: 10px 14px; margin: 0;">
+      <div class="label" style="color: var(--accent);">Etapa 5 (validação humana)</div>
+      <p style="font-size: 14px; margin: 4px 0;">Eu validei <b>1-a-1</b> os 156 matched da Fase 2: <b>82 mantidos, 74 rejeitados</b> (47% rejection rate confirma que LLM-as-judge sozinho não basta).</p>
+    </div>
+  </div>
+
+  <div style="text-align: center; margin-top: 12px;">
+    <div class="stat-block" style="background: #ecfdf5; border-color: var(--green); padding: 12px 28px;">
+      <span class="big-stat" style="font-size: 44px; color: var(--green); line-height: 1;">148</span>
+      <span class="stat-label">queries reais com gold no test set final</span>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 13: DESCOBERTA - V1 EM REAL ====== -->
+<section class="slide">
+  <h2>5. Resultados</h2>
+  <h1>A descoberta: V1 em queries reais</h1>
+  <p>Pegamos 148 queries reais do Discord (com gold validado humanamente — detalhes adiante) e avaliamos os mesmos modelos:</p>
+  <table>
+    <thead><tr><th>BGE-M3</th><th>R@1</th><th>R@5</th><th>R@10</th><th>MRR</th><th>Δ MRR</th></tr></thead>
+    <tbody>
+      <tr><td>baseline</td><td>0.304</td><td>0.595</td><td>0.716</td><td>0.452</td><td>—</td></tr>
+      <tr class="regress"><td>V1-tuned</td><td>0.271</td><td>0.608</td><td>0.723</td><td>0.421</td><td class="red"><b>−6.9%</b></td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top: 24px; font-size: 22px;"><span class="red">V1-tuned ficou pior que o baseline</span> em queries reais. O ganho de +12.7% no sintético <b>não generalizou</b>.</p>
+  <p style="margin-top: 16px;">Conclusão imediata: nosso pipeline de geração V1 está produzindo perguntas <b>artificiais</b>, fora da distribuição real. O modelo overfit nesse estilo sintético e perdeu competência em queries reais.</p>
+</section>
+
+<!-- ====== 14: INSIGHT AIRBNB ====== -->
+<section class="slide">
+  <h2>6. Refinamento</h2>
+  <h1>O paper do Airbnb</h1>
+  <p>Procurando soluções para o problema, encontramos <b>Wei et al. (Airbnb, 2026)</b> — "Bridging the Cold-Start Gap". Eles enfrentaram o mesmo problema ao lançar busca natural sem dados de produção: como gerar dataset sintético que <b>generalize para queries reais</b>?</p>
+  <p><b>Findings deles que aplicamos aqui:</b></p>
+  <ul>
+    <li>Geração ingênua produz queries com <b>KL divergência 7.5× maior</b> vs queries reais.</li>
+    <li>A correção: <b>seeds reais como template estilístico</b> + <b>hard negatives</b> (par positivo vs par "primo similar").</li>
+    <li>Resultado: distribuição sintética muito mais próxima da real, modelo generaliza.</li>
+  </ul>
+  <p style="margin-top: 16px;">Aplicamos exatamente isso para criar a <b>V2 do nosso dataset</b>. Mantemos as <span class="accent">perguntas sintéticas</span> (controle de pares positivo/negativo + escala), mas a <b>geração agora é guiada por queries reais coletadas do Discord</b>. Reais ficam reservadas <span class="accent">exclusivamente para avaliação</span>.</p>
+</section>
+
+<!-- ====== 15: V1 vs V2 SIDE BY SIDE ====== -->
+<section class="slide">
+  <h2>6. Refinamento</h2>
+  <h1>V1 vs V2 — só muda o pipeline de geração</h1>
+  <div class="flex-row">
+    <div class="card neg">
+      <div class="label">V1 (já conhecido)</div>
+      <p><b>Prompt:</b> "Gere uma pergunta criativa sobre este texto."</p>
+      <p><b>Entrada:</b> 1 pílula positiva.</p>
+      <p><b>Negativos:</b> só in-batch (fáceis).</p>
+      <p><b>Estilo produzido:</b> "Em qual situação seria ideal utilizar..."</p>
+    </div>
+    <div class="card pos">
+      <div class="label">V2 (Airbnb-inspired)</div>
+      <p><b>Prompt:</b> contrastivo — "gere pergunta respondida pelo POSITIVO mas NÃO pelo NEGATIVO; imite o estilo dos exemplos".</p>
+      <p><b>Entrada:</b> 4 seeds reais (2 similares + 2 random) + positivo + hard negative.</p>
+      <p><b>Estilo produzido:</b> "alguem sabe como faz X no servidor Y?"</p>
+    </div>
+  </div>
+  <p style="text-align: center; margin-top: 20px;"><b>Tudo o resto é idêntico</b>: mesmo corpus, mesmas pílulas, mesmos hiperparâmetros de treino. <span class="grey">Só varia a estratégia de geração das perguntas.</span></p>
+</section>
+
+<!-- ====== 16: HARD NEG EXEMPLO ====== -->
+<section class="slide">
+  <h2>6. Refinamento — V2</h2>
+  <h1>Hard negative — exemplo concreto</h1>
+  <div class="card ask">
+    <div class="label">Pergunta gerada</div>
+    <p>"alguem sabe o preço exato em miau miau pra resetar skill e atributo com a npc lili?"</p>
+  </div>
+  <div class="flex-row">
+    <div class="card pos">
+      <div class="label">Positivo</div>
+      <p>"O reset de habilidades e atributos pode ser realizado via NPC <b>Lili ou Dudu</b> ao custo de <b>46 Miau Miau para habilidades e 106 para atributos</b>."</p>
+    </div>
+    <div class="card neg">
+      <div class="label">Hard negative (sim=0.669)</div>
+      <p>"Ao contrário do servidor bRO, o LATAM não oferece reset gratuito via NPC Amy Nesia; resets exigem o uso de <b>Joy Coins</b> para alugar o NPC Zonda (Dudu)..."</p>
+    </div>
+  </div>
+  <!-- <p style="margin-top: 20px;"><span class="accent">Detalhe discriminativo:</span> valores numéricos exatos (46/106), presentes só no positivo. O modelo aprende a separar pílulas que falam do mesmo tópico mas diferem em <b>atributo específico</b>.</p> -->
+</section>
+
+<!-- ====== 18: RESULTADO PRINCIPAL ====== -->
+<section class="slide">
+  <h2>8. Resultados</h2>
+  <h1>Resultado em queries reais — <span class="accent">o que de fato importa</span></h1>
+  <img class="fig tall" src="figures/fig2_results_real.png" alt="Bar plot test real">
+  <p style="text-align: center; color: var(--muted); font-size: 15px;">
+    Note: no test sintético V2 todos os modelos atingem ≥0.95 MRR — esse test virou trivial (entidades nomeadas dos hard negatives criam alta sobreposição léxica). Por isso o foco aqui é no test real.
+  </p>
+</section>
+
+<!-- ====== 19: SIGNIFICANCIA ====== -->
+<section class="slide">
+  <h2>8. Resultados</h2>
+  <h1>Significância estatística (bootstrap CI 95%)</h1>
+  <img class="fig tall" src="figures/fig3_forest.png" alt="Forest plot">
+  <p style="text-align: center; color: var(--muted); font-size: 16px;">
+    <span class="green">Verde</span> = significativo positivo. <b>V2 vence baseline em R@5 e R@10 com significância forte.</b> V1 tem tendência negativa mas não-significativa (CIs cruzam zero).
+  </p>
+</section>
+
+<!-- ====== 20: POR QUE V1 REGREDIU ====== -->
+<section class="slide">
+  <h2>9. Discussão</h2>
+  <h1>Por que V1 regrediu em queries reais?</h1>
+  <ul>
+    <li>V1 produz queries <b>formais e verbosas</b> (vício do LLM gerador).</li>
+    <li>Fine-tuning ensina o modelo a <b>casar embeddings com esse estilo específico</b>.</li>
+    <li>Queries reais do Discord são <b>tersas, com gírias, abreviações, erros</b>: <span class="grey">"alguem sabe onde upa lvl 90?"</span></li>
+    <li>O modelo V1-tuned <b>perdeu competência</b> nesse estilo informal — embeddings de jargão foram empurrados para vizinhanças adaptadas a fraseado elaborado.</li>
+  </ul>
+  <p style="margin-top: 24px; padding: 16px; background: var(--accent-soft); border-radius: 8px;">
+    <b>Coerente com Wei et al. (Airbnb, 2026):</b> o paper mede que queries sintéticas naive ficam a <b>~7.5× a KL divergência</b> da distribuição real. Aqui observamos a <b>consequência prática</b> dessa distância — V1 brilha em test sintético V1 (mesma distribuição) mas regride em real. Sem o teste real, teríamos saído com a impressão (errada) de que V1 era um sucesso.
+  </p>
+</section>
+
+<!-- ====== 21: POR QUE V2 FUNCIONOU ====== -->
+<section class="slide">
+  <h2>9. Discussão</h2>
+  <h1>Por que V2 funcionou?</h1>
+  <div class="flex-row">
+    <div class="card pos">
+      <div class="label">Seeds reais</div>
+      <p>Dão ao LLM a <b>distribuição estilística correta</b> — terseness, gírias, abreviações. O modelo treinado vê pares (pergunta-estilo-real, pílula) e aprende a alinhar embeddings com o estilo de produção.</p>
+    </div>
+    <div class="card pos">
+      <div class="label">Hard negatives</div>
+      <p>MNRL com negativos só in-batch é fácil — distinguir um par dos 31 outros aleatórios é trivial. O <b>negativo similar deliberado</b> força aprender o atributo específico que separa pílulas adjacentes.</p>
+    </div>
+  </div>
+  <p style="margin-top: 24px; font-size: 22px; text-align: center;">
+    A combinação <b>seeds + hard negatives</b> faz o modelo alinhar estilo <em>e</em> aprender discriminatividade fina.
+  </p>
+</section>
+
+<!-- ====== 22: EXEMPLOS REAIS RESGATADOS PELO V2 ====== -->
+<section class="slide">
+  <h2>9. Discussão — concreto</h2>
+  <h1>Exemplos reais que o V2-tuned resgatou</h1>
+  <p style="margin-top: 2px; font-size: 16px;">Queries reais do Discord (validadas humanamente). Top-1 do BGE-M3 baseline vs gold correto trazido pelo V2-tuned. <span class="grey">3 modos de falha diferentes.</span></p>
+
+  <!-- CASO 1: feiticeiro -->
+  <div class="card ask" style="margin: 6px 0; padding: 8px 14px;">
+    <div class="label" style="font-size: 11px;">Caso 1 — classe errada por overlap léxico</div>
+    <p style="font-size: 14.5px; margin: 2px 0;">Q: <i>"boan noite alguem sabe se tem alguma build de feiticeiro boa por ai?"</i></p>
+    <div class="flex-row" style="margin-top: 4px; gap: 10px;">
+      <div class="card pos" style="margin:0; padding: 6px 10px;"><div class="label" style="font-size: 11px;">V2: rank 6 ✓</div><p style="font-size: 13px; margin: 2px 0;">"Para reduzir a conjuração fixa em classes mágicas como <b>Feiticeiro</b>, recomenda-se Botas Temporais de DES..."</p></div>
+      <div class="card neg" style="margin:0; padding: 6px 10px;"><div class="label" style="font-size: 11px;">Baseline: rank 35 ✗</div><p style="font-size: 13px; margin: 2px 0;">"Para a classe <b>Guardião Real (RG)</b>, as builds mais eficientes... Toque do Oblívio..." <span class="grey">classe errada</span></p></div>
+    </div>
+  </div>
+
+  <!-- CASO 2: krl perga -->
+  <div class="card ask" style="margin: 6px 0; padding: 8px 14px;">
+    <div class="label" style="font-size: 11px;">Caso 2 — gírias pesadas levam baseline a off-topic total</div>
+    <p style="font-size: 14.5px; margin: 2px 0;">Q: <i>"krl, o npc ta fazendo caixa 2 com os perga na alta?"</i></p>
+    <div class="flex-row" style="margin-top: 4px; gap: 10px;">
+      <div class="card pos" style="margin:0; padding: 6px 10px;"><div class="label" style="font-size: 11px;">V2: rank 7 ✓</div><p style="font-size: 13px; margin: 2px 0;">"Bug no NPC <b>Empacotador de Pergaminhos</b>: ao abrir a caixa de pergaminho transferível, o item sumia..."</p></div>
+      <div class="card neg" style="margin:0; padding: 6px 10px;"><div class="label" style="font-size: 11px;">Baseline: rank 37 ✗</div><p style="font-size: 13px; margin: 2px 0;">"A build de <b>Ranger</b> sofre com falta de SP sem a carta Deleterio..." <span class="grey">totalmente off-topic</span></p></div>
+    </div>
+  </div>
+
+  <!-- CASO 3: GTB novato -->
+  <div class="card ask" style="margin: 6px 0; padding: 8px 14px;">
+    <div class="label" style="font-size: 11px;">Caso 3 — pergunta curta de novato vs fato genérico</div>
+    <p style="font-size: 14.5px; margin: 2px 0;">Q: <i>"Gente sou novato. Como faz para dropar a gtb?"</i></p>
+    <div class="flex-row" style="margin-top: 4px; gap: 10px;">
+      <div class="card pos" style="margin:0; padding: 6px 10px;"><div class="label" style="font-size: 11px;">V2: rank 2 ✓</div><p style="font-size: 13px; margin: 2px 0;">"A carta do MVP <b>GTB</b> foi dropada diretamente no mapa de esgotos no servidor Freya."</p></div>
+      <div class="card neg" style="margin:0; padding: 6px 10px;"><div class="label" style="font-size: 11px;">Baseline: rank 17 ✗</div><p style="font-size: 13px; margin: 2px 0;">"A mecânica de drop do jogo <b>arredonda valores decimais</b> para baixo..." <span class="grey">regra genérica, ignora GTB</span></p></div>
+    </div>
+  </div>
+
+  <p style="font-size: 13.5px; color: var(--muted); text-align: center; margin-top: 4px;">Padrão recorrente: baseline se prende a <b>overlap léxico</b>; V2-tuned aprendeu a casar pela <b>intenção</b> mesmo com gírias, abreviações e queries curtas.</p>
+</section>
+
+<!-- ====== 23: LIMITACOES ====== -->
+<section class="slide">
+  <h2>10. Limitações</h2>
+  <h1>O que esse trabalho não fez (honestamente)</h1>
+  <ul>
+    <li><b>n=148</b> no test real → CIs largos. R@5/R@10 atingem significância; MRR fica em "tendência".</li>
+    <li><b>LLM-as-judge tem viés</b>: Gemini 2.5 errou 47% dos seus matches (segundo validação humana). Lote da Fase 1 (Gemini 3.5 com reasoning) <b>não foi validado exaustivamente</b>.</li>
+    <li><b>Cobertura do corpus</b>: ~70% das queries reais <b>não têm resposta</b> nas 1.693 pílulas. Mesmo retriever perfeito teria recall máximo ~30% em produção.</li>
+    <li><b>Viés heurístico na extração de seeds</b>: filtros excluem perguntas em forma declarativa, replies, e dependem de classificador LLM. Performance fora desses critérios é desconhecida.</li>
+    <li><b>Generalização externa</b>: um domínio (PT-BR + Ragnarok), uma arquitetura (BGE-M3), um algoritmo (LoRA + MNRL).</li>
+  </ul>
+</section>
+
+<!-- ====== 23: TAKEAWAY ====== -->
+<section class="slide center">
+  <h2>11. Conclusão</h2>
+  <h1>Takeaway</h1>
+  <div style="max-width: 800px; margin: 20px auto;">
+    <p style="font-size: 26px;">Fine-tuning de embeddings em domínio nichado <span class="green">funciona</span>, <b>com nuance</b>:</p>
+    <div class="card pos" style="text-align: left; margin: 24px 0;">
+      <p style="font-size: 21px; margin: 6px 0;"><b>1.</b> Só se o dataset for construído com queries estilisticamente alinhadas ao uso real <b>e</b> com hard negatives.</p>
+      <p style="font-size: 21px; margin: 6px 0;"><b>2.</b> A estratégia ingênua (V1) pode ser <span class="red">pior</span> que não fine-tunar.</p>
+      <p style="font-size: 21px; margin: 6px 0;"><b>3.</b> Em projetos práticos: <b>invista em pipeline de geração de dados antes de hiperparâmetros</b>.</p>
+    </div>
+    <p style="font-size: 22px; color: var(--muted); margin-top: 28px;">
+      Para o RAG de Ragnarok em produção: o próximo investimento é <b>cobertura do corpus</b> (Wiki, YouTube) — não retrieval.
+    </p>
+  </div>
+</section>
+
+<!-- ====== 24: OBRIGADO + REFERENCIAS ====== -->
+<section class="slide center" style="justify-content: center; align-items: center;">
+  <div>
+    <h1 style="font-size: 72px;">Obrigado!</h1>
+    <p style="font-size: 24px; color: var(--muted); margin-top: 24px;">Perguntas?</p>
+    <button class="btn-refs" onclick="openRefs()">📖 Ver referências</button>
+    <p style="font-size: 18px; color: var(--muted); margin-top: 40px;">
+      Guilherme de Almeida José &nbsp;&middot;&nbsp; 18006632<br>
+      guilherme.alj@gmail.com
+    </p>
+  </div>
+</section>
+
+<!-- ====== REFERENCES MODAL ====== -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeRefs()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeRefs()">×</button>
+    <h2>Bibliografia</h2>
+    <h3>Referências</h3>
+    <div class="ref-list">
+      <p><b>Chen, J., Xiao, S., Zhang, P., Luo, K., Lian, D., e Liu, Z.</b> (2024). BGE M3-Embedding: Multi-Lingual, Multi-Function, Multi-Granularity Text Embeddings Through Self-Knowledge Distillation. <i>arXiv:2402.03216</i>.</p>
+      <p><b>Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., e Chen, W.</b> (2021). LoRA: Low-Rank Adaptation of Large Language Models. <i>arXiv:2106.09685</i>.</p>
+      <p><b>Karpukhin, V., Oğuz, B., Min, S., Lewis, P., Wu, L., Edunov, S., Chen, D., e Yih, W.-t.</b> (2020). Dense Passage Retrieval for Open-Domain Question Answering. <i>Proceedings of EMNLP 2020</i>, pp. 6769–6781.</p>
+      <p><b>Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., Küttler, H., Lewis, M., Yih, W.-t., Rocktäschel, T., Riedel, S., e Kiela, D.</b> (2020). Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks. <i>NeurIPS 2020</i>, vol. 33, pp. 9459–9474.</p>
+      <p><b>Liu, Y., Iter, D., Xu, Y., Wang, S., Xu, R., e Zhu, C.</b> (2023). G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment. <i>Proceedings of EMNLP 2023</i>, pp. 2511–2522.</p>
+      <p><b>Reimers, N., e Gurevych, I.</b> (2019). Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks. <i>Proceedings of EMNLP-IJCNLP 2019</i>, pp. 3982–3992.</p>
+      <p><b>Thakur, N., Reimers, N., Rücklé, A., Srivastava, A., e Gurevych, I.</b> (2021). BEIR: A Heterogeneous Benchmark for Zero-shot Evaluation of Information Retrieval Models. <i>NeurIPS 2021 Datasets and Benchmarks Track</i>.</p>
+      <p><b>Voorhees, E. M.</b> (2001). Evaluation by highly relevant documents. <i>Proceedings of SIGIR 2001</i>, pp. 74–82.</p>
+      <p><b>Wei, W. R., Li, H., Guo, W., Liu, X., Chen, X., Davis, D., Haldar, M., Banerjee, S., Bellare, K., Gao, H., Moyerman, S., e Katariya, S.</b> (2026). Bridging the Cold-Start Gap: LLM-Powered Synthetic Data Generation for Natural Language Search at Airbnb. <i>arXiv:2605.21812</i>.</p>
+      <p><b>Xiong, L., Xiong, C., Li, Y., Tang, K.-F., Liu, J., Bennett, P., Ahmed, J., e Overwijk, A.</b> (2021). Approximate Nearest Neighbor Negative Contrastive Learning for Dense Text Retrieval. <i>Proceedings of ICLR 2021</i>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="nav" id="nav">
+  <button onclick="prev()" id="btn-prev">◀</button>
+  <span class="counter" id="counter">1 / 27</span>
+  <button onclick="next()" id="btn-next">▶</button>
+</nav>
+<div class="hint" id="hint">←/→ ou clique para navegar &middot; duplo-clique para voltar</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let idx = 0;
+
+  function show(i) {
+    if (i < 0 || i >= total) return;
+    slides[idx].classList.remove('active');
+    idx = i;
+    slides[idx].classList.add('active');
+    document.getElementById('counter').textContent = `${idx + 1} / ${total}`;
+    document.getElementById('progress').style.width = `${((idx + 1) / total) * 100}%`;
+    document.getElementById('btn-prev').disabled = idx === 0;
+    document.getElementById('btn-next').disabled = idx === total - 1;
+  }
+  function next() { if (idx < total - 1) show(idx + 1); }
+  function prev() { if (idx > 0) show(idx - 1); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault(); next();
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault(); prev();
+    } else if (e.key === 'Home') { show(0); }
+    else if (e.key === 'End') { show(total - 1); }
+    else if (e.key === 'Escape') { closeRefs(); }
+  });
+
+  // === Idle hide (mouse + nav) ===
+  const IDLE_MS = 2000;
+  let idleTimer;
+  function resetIdle() {
+    document.body.classList.remove('idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      // só esconde se modal não estiver aberto
+      if (!document.getElementById('modal').classList.contains('active')) {
+        document.body.classList.add('idle');
+      }
+    }, IDLE_MS);
+  }
+  ['mousemove', 'keydown', 'click', 'touchstart'].forEach(ev =>
+    document.addEventListener(ev, resetIdle)
+  );
+
+  // === Click navigation (single = next, double = prev) ===
+  let clickTimer = null;
+  const DBL_MS = 280;
+  document.body.addEventListener('click', (e) => {
+    // Ignora cliques em elementos interativos
+    if (e.target.closest('button, a, .nav, .modal-overlay, .btn-refs')) return;
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+      prev();  // double click
+    } else {
+      clickTimer = setTimeout(() => {
+        next();
+        clickTimer = null;
+      }, DBL_MS);
+    }
+  });
+
+  // === References modal ===
+  function openRefs() {
+    document.getElementById('modal').classList.add('active');
+    document.body.classList.remove('idle');
+    clearTimeout(idleTimer);
+  }
+  function closeRefs() {
+    document.getElementById('modal').classList.remove('active');
+    resetIdle();
+  }
+
+  show(0);
+  resetIdle();
+</script>
+
+</body>
+</html>
