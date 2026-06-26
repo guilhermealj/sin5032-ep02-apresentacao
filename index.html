@@ -220,7 +220,7 @@
     <div class="node answer"><b>Resposta</b></div>
   </div>
   <!-- <p style="font-size: 17px; margin: 2px 0; text-align: center;">O retriever projeta query e passagens num <b>espaço vetorial</b> onde distância = similaridade semântica. Termos parecidos ficam próximos:</p> -->
-  <img src="word_embeddings_visualization.png" alt="2D word embeddings" style="display: block; margin: 4px auto 0 auto; max-width: 90%; max-height: 60vh; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+  <img src="word_embeddings_visualization.png" alt="2D word embeddings" style="display: block; margin: 4px auto 0 auto; max-width: 90%; max-height: 57vh; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
   <p class="footnote" style="text-align: center; margin: 2px 0 0 0; padding-top: 4px;">Fonte da figura: web.engr.oregonstate.edu/~huanlian/teaching/ML (visualização 2D clássica de word embeddings).</p>
 </section>
 
@@ -237,23 +237,23 @@
 <section class="slide">
   <h2>1. Hipótese — análise 1</h2>
   <h1>OOV: vocabulário fora do treino</h1>
-  <p>Análise <b>léxica</b>: quantas palavras únicas do corpus o tokenizador de um BERT em português trataria como <i>out-of-vocabulary</i>?</p>
+  <!-- <p>Análise <b>léxica</b>: quantas palavras únicas do corpus o tokenizador de um BERT em português trataria como <i>out-of-vocabulary</i>?</p> -->
   <div style="text-align: center; margin: 24px 0;">
     <div class="stat-block">
       <span class="big-stat">~50%</span>
-      <span class="stat-label">palavras OOV (uni-token)</span>
+      <span class="stat-label">palavras OOV</span>
     </div>
   </div>
   <p><b>Top OOV mais frequentes:</b> <code>latam</code>, <code>tbm</code>, <code>kkk</code>, <code>kafra</code>, <code>rufio</code>, <code>npc</code>, <code>refino</code>, <code>prontera</code>, <code>dupe</code>, <code>woe</code>, <code>vcs</code>...</p>
-  <p>São exatamente termos do jogo (e gírias de chat). Para o encoder, vira combinação arbitrária de subtokens — perde o significado domínio-específico.</p>
+  <!-- <p>São exatamente termos do jogo (e gírias de chat). Para o encoder, vira combinação arbitrária de subtokens — perde o significado domínio-específico.</p> -->
   <p class="footnote">Algoritmo desenvolvido para esta análise: uma palavra é considerada <b>in-vocabulary</b> se (a) o tokenizador do BERTimbau (BERT pt-BR) a mapeia em <i>um único token</i>, ou (b) ela aparece no dicionário pt-BR da NLTK (com normalização de acentos). Caso contrário, classificada como OOV. Critério é estrito mas suficiente para sinalizar gap léxico.</p>
 </section>
 
 <!-- ====== 5: TERMOS AMBIGUOS (analise semantica) ====== -->
 <section class="slide">
   <h2>1. Hipótese — análise 2</h2>
-  <h1>Termos ambíguos: mesmo léxico, sentido diferente</h1>
-  <p>Análise <b>semântica</b>, separada da OOV: palavras que <b>estão no vocabulário</b> dos modelos pré-treinados, mas mudam radicalmente de sentido dentro do jogo. Comparamos vizinhos por embeddings genéricos vs vizinhos por <b>PMI</b> dentro do corpus.</p>
+  <h1>Termos ambíguos</h1>
+  <!-- <p>Análise <b>semântica</b>, separada da OOV: palavras que <b>estão no vocabulário</b> dos modelos pré-treinados, mas mudam radicalmente de sentido dentro do jogo. Comparamos vizinhos por embeddings genéricos vs vizinhos por <b>PMI</b> dentro do corpus.</p> -->
   <table>
     <thead><tr><th>Termo</th><th>Sentido geral (embedding)</th><th>Sentido no Ragnarok (PMI)</th></tr></thead>
     <tbody>
