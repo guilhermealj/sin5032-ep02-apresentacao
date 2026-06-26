@@ -228,9 +228,18 @@
 <section class="slide">
   <h2>1. Hipótese inicial</h2>
   <h1>E em domínios nichados?</h1>
-  <p><b>Hipótese de trabalho:</b> modelos de embedding pré-treinados em corpora genéricos (web, livros) <i>podem</i> ter dificuldade em domínios fechados com vocabulário próprio, gírias e ambiguidade contextual.</p>
-  <p><b>Caso de estudo:</b> servidor LATAM de Ragnarok Online — MMORPG com comunidade brasileira ativa no Discord oficial, terminologia altamente especializada (Kafra, refino, MVP, dupe, rebornar, etc.).</p>
-  <p style="margin-top: 24px;">A hipótese é razoável, mas <b>precisamos de evidência</b>. Antes de tentar fine-tunar qualquer coisa, fizemos uma <span class="accent">exploração da base no EP01</span> para verificar se há sinais concretos dessa dificuldade.</p>
+
+  <div class="card ask" style="margin: 16px 0;">
+    <div class="label">Hipótese de trabalho</div>
+    <p style="font-size: 19px;">Encoders treinados em corpora genéricos (web, livros) <b>podem ter dificuldade</b> em domínios fechados com vocabulário próprio, gírias e ambiguidade contextual.</p>
+  </div>
+
+  <h3 style="margin-top: 24px;">Caso de estudo</h3>
+  <ul style="font-size: 19px;">
+    <li><b>Ragnarok Online LATAM</b> — MMORPG com comunidade BR ativa no Discord oficial.</li>
+    <li>Terminologia altamente especializada: <code>Kafra</code>, <code>refino</code>, <code>MVP</code>, <code>dupe</code>, <code>rebornar</code>...</li>
+    <li>Mas hipótese ≠ evidência. <span class="accent">Próximos 3 slides: exploração da base buscando sinais concretos.</span></li>
+  </ul>
 </section>
 
 <!-- ====== 4: OOV (analise lexica) ====== -->
@@ -264,14 +273,14 @@
       <tr><td><code>refino</code></td><td>refino genérico</td><td>upgrade numerado (+4, +7, +10)</td></tr>
     </tbody>
   </table>
-  <p style="margin-top: 16px;"><b>Insight:</b> mesmo termos que o encoder "conhece" são mapeados para a região errada do espaço vetorial. Junto com o OOV alto, isto sustenta a hipótese de que <b>fine-tuning deveria ajudar</b>.</p>
+  <p style="margin-top: 16px; padding: 10px 14px; background: var(--accent-soft); border-radius: 6px; text-align: center; font-size: 17px;">Mesmo palavras "conhecidas" pelo encoder caem na <b>região errada</b> do espaço vetorial.</p>
 </section>
 
 <!-- ====== 6: ANIMACAO - O QUE O FINE-TUNING OTIMIZA ====== -->
 <section class="slide">
   <h2>1. Intuição visual</h2>
   <h1>O que o fine-tuning está tentando otimizar?</h1>
-  <p>Considere os termos <b>"galho seco"</b>, <b>"árvore"</b> e <b>"monstro"</b>. Por similaridade léxica/textual, um encoder genérico aproxima <i>galho seco ~ árvore</i> (ambos botânicos). Mas no Ragnarok, <b>"galho seco" é um item que invoca um monstro aleatório</b> — semanticamente, no domínio, ele está muito mais próximo de <i>monstro</i>.</p>
+  <p style="font-size: 18px; margin: 4px 0 0 0;"><b>"Galho seco"</b> no Ragnarok = item que invoca um monstro. Encoder genérico aproxima de "árvore"; deveria estar perto de "monstro".</p>
   <svg viewBox="0 0 600 280" style="display: block; margin: 10px auto; max-width: 70%; max-height: 38vh; background: #f8fafc; border-radius: 8px;">
     <!-- Eixos -->
     <line x1="30" y1="250" x2="570" y2="250" stroke="#cbd5e1" stroke-width="1"/>
@@ -315,7 +324,7 @@
       <text x="148" y="224" font-size="14" fill="#1a1a1a" font-family="sans-serif" font-weight="600">monstro</text>
     </g>
   </svg>
-  <p style="text-align: center; color: var(--muted); font-size: 16px; margin-top: 4px;">A função de custo (MNRL) empurra pares (pergunta, pílula correta) a ficarem próximos no espaço; pares com pílula errada, a ficarem distantes. Visualmente: é exatamente esse rearranjo que o fine-tuning aprende.</p>
+  <p style="text-align: center; color: var(--muted); font-size: 15px; margin-top: 4px;">A loss (MNRL) puxa <b>pares corretos</b> pra perto e empurra <b>pares errados</b> pra longe. Visualmente: é exatamente esse rearranjo.</p>
 </section>
 
 <!-- ====== 7: HEAP'S LAW ====== -->
@@ -335,21 +344,51 @@
   <div class="quote" style="font-size: 22px;">
     "Em sistemas de busca vetorial por similaridade para <b>domínios nichados</b>, modelos de embedding <b>ajustados finamente</b> podem melhorar a performance da busca?"
   </div>
-  <p style="margin-top: 24px;">Com a hipótese sustentada pela exploração (OOV alto, termos ambíguos, vocabulário em crescimento), a questão se torna respondível por experimento. Spoiler: a resposta é <span class="accent">condicional</span> — depende fortemente de como o dataset supervisionado é construído. A questão será <b>refinada mais adiante</b> (após observar um resultado contra-intuitivo).</p>
+  <!-- <p style="margin-top: 24px;">Com a hipótese sustentada pela exploração (OOV alto, termos ambíguos, vocabulário em crescimento), a questão se torna respondível por experimento. Spoiler: a resposta é <span class="accent">condicional</span> — depende fortemente de como o dataset supervisionado é construído. A questão será <b>refinada mais adiante</b> (após observar um resultado contra-intuitivo).</p> -->
 </section>
 
 <!-- ====== 8: CONSTRUCAO DATASET V1 ====== -->
 <section class="slide">
   <h2>3. Construção do dataset</h2>
-  <h1>Dataset V1 — abordagem inicial</h1>
-  <ul>
-    <li><b>Corpus</b>: 576k mensagens do Discord → limpeza (dedup, repetição, near-dup) → 1.693 <b>pílulas de conhecimento</b> condensadas via LLM (unidades atômicas de informação, sem ruído de chat).</li>
-    <li><b>Perguntas sintéticas (V1)</b>: para cada pílula, prompt simples ao LLM:
-      <div class="quote" style="font-size: 17px; margin: 8px 0 8px 28px;">"Você é especialista em Ragnarok. Gere uma pergunta criativa sobre este texto, evitando copy-paste."</div>
-    </li>
-    <li><b>Resultado</b>: 1.693 pares <code>(pergunta, pílula)</code>. Split temporal P80 → <b>1.354 treino</b>, <b>339 teste</b>.</li>
-  </ul>
-  <p style="margin-top: 16px; padding: 12px 16px; background: #fef9c3; border-radius: 6px;"><b>Por que sintético?</b> Em queries reais é difícil construir pares <code>(pergunta, pílula-correta)</code> sem rotulagem manual cara. Sintético permite controle total: cada pílula tem uma pergunta direcionada a ela, e mais tarde, pares positivo/negativo bem definidos.</p>
+  <h1>Dataset V1 — funil de geração</h1>
+
+  <div style="display: flex; flex-direction: column; gap: 6px; align-items: center; margin: 14px 0;">
+
+    <!-- Stage 1: Discord raw -->
+    <div style="background: #f1f5f9; border: 1px solid var(--border); border-radius: 8px; padding: 10px 32px; text-align: center; min-width: 75%;">
+      <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px;">💬 Discord LATAM (Nov 2024 – Dez 2025)</div>
+      <div style="font-size: 30px; font-weight: 700; color: #475569; margin-top: 2px;">576.000 <span style="font-size: 16px; color: var(--muted); font-weight: 400;">mensagens cruas</span></div>
+    </div>
+    <div style="font-size: 18px; color: var(--accent); line-height: 1;">↓ &nbsp;<span style="font-size: 12px; color: var(--muted);">dedup · repetições · near-dup · ruído de chat</span></div>
+
+    <!-- Stage 2: Pillules -->
+    <div style="background: #dbeafe; border: 2px solid var(--accent); border-radius: 8px; padding: 10px 32px; text-align: center; min-width: 60%;">
+      <div style="font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 1.2px;">💊 Pílulas de conhecimento (LLM condensa)</div>
+      <div style="font-size: 30px; font-weight: 700; color: var(--accent); margin-top: 2px;">1.693 <span style="font-size: 16px; color: var(--muted); font-weight: 400;">unidades atômicas</span></div>
+    </div>
+    <div style="font-size: 18px; color: var(--accent); line-height: 1;">↓ &nbsp;<span style="font-size: 12px; color: var(--muted);">prompt simples ao LLM: <i>"gere 1 pergunta criativa por pílula, sem copy-paste"</i></span></div>
+
+    <!-- Stage 3: Pairs -->
+    <div style="background: #ecfdf5; border: 2px solid var(--green); border-radius: 8px; padding: 10px 32px; text-align: center; min-width: 55%;">
+      <div style="font-size: 11px; color: var(--green); text-transform: uppercase; letter-spacing: 1.2px;">📦 Pares (pergunta sintética, pílula)</div>
+      <div style="font-size: 30px; font-weight: 700; color: var(--green); margin-top: 2px;">1.693 <span style="font-size: 16px; color: var(--muted); font-weight: 400;">pares supervisionados</span></div>
+    </div>
+    <div style="font-size: 18px; color: var(--accent); line-height: 1;">↓ &nbsp;<span style="font-size: 12px; color: var(--muted);">split temporal P80 (treino até 04/dez/2025) — zero leakage</span></div>
+
+    <!-- Stage 4: Split -->
+    <div style="display: flex; gap: 18px;">
+      <div style="background: white; border: 1px solid var(--border); border-radius: 8px; padding: 10px 36px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="font-size: 28px; font-weight: 700;">1.354</div>
+        <div style="font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;">treino</div>
+      </div>
+      <div style="background: white; border: 1px solid var(--border); border-radius: 8px; padding: 10px 36px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="font-size: 28px; font-weight: 700;">339</div>
+        <div style="font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;">teste</div>
+      </div>
+    </div>
+  </div>
+
+  <p style="background: #fef9c3; padding: 8px 14px; border-radius: 6px; font-size: 14px; margin-top: 10px; text-align: center;"><b>Por que sintético?</b> Sem rotulagem manual cara, cada pílula tem uma pergunta direcionada — controle total + escala.</p>
 </section>
 
 <!-- ====== 10: PIPELINE OVERVIEW (apenas V1 inicialmente) ====== -->
@@ -372,7 +411,7 @@
     <div class="stat-block"><span class="big-stat" style="font-size:48px;">1.354</span><span class="stat-label">treino V1</span></div>
     <div class="stat-block"><span class="big-stat" style="font-size:48px;">339</span><span class="stat-label">teste sintético V1</span></div>
   </div>
-  <p style="text-align: center; margin-top: 16px; color: var(--muted);">Split temporal estrito (treino até 2025-12-04, teste após) — zero leakage. <b>Próximos slides:</b> rodamos esse pipeline, vemos um resultado bom, mas desconfiamos. Aí construímos um test de queries reais e descobrimos um problema — que motiva uma <span class="accent">V2</span> do dataset.</p>
+  <p style="text-align: center; margin-top: 16px; color: var(--muted);">Split temporal estrito (treino até 2025-12-04, teste após), zero vazamento de dados.
 </section>
 
 <!-- ====== 10: SETUP TECNICO ====== -->
@@ -485,8 +524,16 @@
       <tr class="highlight"><td>V1-tuned</td><td>0.746</td><td>0.935</td><td>0.973</td><td><b>0.825</b></td><td class="green"><b>+12.7%</b></td></tr>
     </tbody>
   </table>
-  <p style="margin-top: 24px;">Primeira leitura: <span class="green">hipótese confirmada com folga</span>. BGE-M3 fine-tuned (0.825) supera <b>até o baseline OpenAI</b> (0.755).</p>
-  <p style="margin-top: 16px; padding: 16px; background: #fff7ed; border-left: 4px solid #ea580c; border-radius: 4px;"><b>Mas algo cheira mal.</b> O ganho parece grande demais. E o test set foi gerado pela mesma técnica que o treino — pode estar enviesado a favor do modelo. Decidimos validar com um <b>teste independente</b>: queries reais do Discord.</p>
+  <p style="margin-top: 18px; font-size: 19px;"><span class="green">Hipótese confirmada com folga.</span> BGE-M3 fine-tuned (0.825) supera <b>até o baseline OpenAI</b> (0.755).</p>
+
+  <div style="margin-top: 14px; padding: 12px 16px; background: #fff7ed; border-left: 4px solid #ea580c; border-radius: 4px;">
+    <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; color: #ea580c; letter-spacing: 1px;">⚠ Mas algo cheira mal</div>
+    <ul style="margin: 6px 0 0 0; font-size: 16px; padding-left: 22px;">
+      <li>Ganho grande demais.</li>
+      <li>Test set gerado pela <b>mesma técnica</b> do treino → viés circular.</li>
+      <li><b>Próximo passo:</b> validar com queries reais do Discord.</li>
+    </ul>
+  </div>
 </section>
 
 <!-- ====== 12.5: TEST SET REAL - PIPELINE DE CONSTRUCAO ====== -->
@@ -537,8 +584,8 @@
 <!-- ====== 13: DESCOBERTA - V1 EM REAL ====== -->
 <section class="slide">
   <h2>5. Resultados</h2>
-  <h1>A descoberta: V1 em queries reais</h1>
-  <p>Pegamos 148 queries reais do Discord (com gold validado humanamente — detalhes adiante) e avaliamos os mesmos modelos:</p>
+  <h1>V1 em queries reais</h1>
+  <!-- <p>Pegamos 148 queries reais do Discord (com gold validado humanamente — detalhes adiante) e avaliamos os mesmos modelos:</p> -->
   <table>
     <thead><tr><th>BGE-M3</th><th>R@1</th><th>R@5</th><th>R@10</th><th>MRR</th><th>Δ MRR</th></tr></thead>
     <tbody>
@@ -546,22 +593,43 @@
       <tr class="regress"><td>V1-tuned</td><td>0.271</td><td>0.608</td><td>0.723</td><td>0.421</td><td class="red"><b>−6.9%</b></td></tr>
     </tbody>
   </table>
-  <p style="margin-top: 24px; font-size: 22px;"><span class="red">V1-tuned ficou pior que o baseline</span> em queries reais. O ganho de +12.7% no sintético <b>não generalizou</b>.</p>
-  <p style="margin-top: 16px;">Conclusão imediata: nosso pipeline de geração V1 está produzindo perguntas <b>artificiais</b>, fora da distribuição real. O modelo overfit nesse estilo sintético e perdeu competência em queries reais.</p>
+  <p style="margin-top: 18px; font-size: 22px; text-align: center;"><span class="red">V1-tuned ficou PIOR que o baseline.</span> O +12.7% sintético <b>não generalizou</b>.</p>
+
+  <ul style="margin-top: 12px; font-size: 18px;">
+    <li>V1 gera perguntas <b>artificiais</b>, fora da distribuição real.</li>
+    <li>Modelo <b>overfitou</b> no estilo sintético → perdeu competência no real.</li>
+  </ul>
 </section>
 
 <!-- ====== 14: INSIGHT AIRBNB ====== -->
 <section class="slide">
   <h2>6. Refinamento</h2>
-  <h1>O paper do Airbnb</h1>
-  <p>Procurando soluções para o problema, encontramos <b>Wei et al. (Airbnb, 2026)</b> — "Bridging the Cold-Start Gap". Eles enfrentaram o mesmo problema ao lançar busca natural sem dados de produção: como gerar dataset sintético que <b>generalize para queries reais</b>?</p>
-  <p><b>Findings deles que aplicamos aqui:</b></p>
-  <ul>
-    <li>Geração ingênua produz queries com <b>KL divergência 7.5× maior</b> vs queries reais.</li>
-    <li>A correção: <b>seeds reais como template estilístico</b> + <b>hard negatives</b> (par positivo vs par "primo similar").</li>
-    <li>Resultado: distribuição sintética muito mais próxima da real, modelo generaliza.</li>
-  </ul>
-  <p style="margin-top: 16px;">Aplicamos exatamente isso para criar a <b>V2 do nosso dataset</b>. Mantemos as <span class="accent">perguntas sintéticas</span> (controle de pares positivo/negativo + escala), mas a <b>geração agora é guiada por queries reais coletadas do Discord</b>. Reais ficam reservadas <span class="accent">exclusivamente para avaliação</span>.</p>
+  <h1>O paper do Airbnb resolve esse problema</h1>
+
+  <div class="card ask" style="margin: 10px 0;">
+    <div class="label">Wei et al. (Airbnb, 2026) — "Bridging the Cold-Start Gap"</div>
+    <p style="font-size: 17px; margin: 4px 0;">Mesmo problema: lançar busca natural <b>sem dados de produção</b>. Como gerar sintético que generalize?</p>
+  </div>
+
+  <h3 style="margin-top: 18px;">Receita do paper que aplicamos:</h3>
+  <div class="flex-row" style="gap: 16px; margin-top: 8px;">
+    <div class="card neg" style="margin: 0;">
+      <div class="label">📊 Diagnóstico</div>
+      <p style="font-size: 16px;">Geração naive → KL divergência <b>7.5× maior</b> vs queries reais.</p>
+    </div>
+    <div class="card pos" style="margin: 0;">
+      <div class="label">🌱 Seeds reais</div>
+      <p style="font-size: 16px;">Usar queries reais como <b>template estilístico</b>.</p>
+    </div>
+    <div class="card pos" style="margin: 0;">
+      <div class="label">⚔️ Hard negatives</div>
+      <p style="font-size: 16px;">Par positivo vs <b>"primo similar"</b> (não aleatório).</p>
+    </div>
+  </div>
+
+  <p style="margin-top: 16px; padding: 10px 14px; background: var(--accent-soft); border-radius: 6px; text-align: center; font-size: 16px;">
+    <b>Aplicação aqui:</b> <span class="accent">V2 do dataset.</span> Queries reais → <b>guiam</b> a geração sintética. Reais ficam <b>só na avaliação</b>.
+  </p>
 </section>
 
 <!-- ====== 15: V1 vs V2 SIDE BY SIDE ====== -->
@@ -631,33 +699,48 @@
 <section class="slide">
   <h2>9. Discussão</h2>
   <h1>Por que V1 regrediu em queries reais?</h1>
-  <ul>
-    <li>V1 produz queries <b>formais e verbosas</b> (vício do LLM gerador).</li>
-    <li>Fine-tuning ensina o modelo a <b>casar embeddings com esse estilo específico</b>.</li>
-    <li>Queries reais do Discord são <b>tersas, com gírias, abreviações, erros</b>: <span class="grey">"alguem sabe onde upa lvl 90?"</span></li>
-    <li>O modelo V1-tuned <b>perdeu competência</b> nesse estilo informal — embeddings de jargão foram empurrados para vizinhanças adaptadas a fraseado elaborado.</li>
+
+  <div class="flex-row" style="gap: 16px; margin: 16px 0;">
+    <div class="card neg" style="margin: 0;">
+      <div class="label">Treino V1 (sintético)</div>
+      <p style="font-size: 16px;"><i>"Em qual situação seria ideal utilizar o Anel do Reforço Físico para potencializar dano contra mobs diversos?"</i></p>
+      <p style="font-size: 13px; color: var(--muted); margin-top: 4px;">formal, verboso, completo</p>
+    </div>
+    <div class="card pos" style="margin: 0;">
+      <div class="label">Produção (Discord)</div>
+      <p style="font-size: 16px;"><i>"alguem sabe onde upa lvl 90?"</i></p>
+      <p style="font-size: 13px; color: var(--muted); margin-top: 4px;">terço, com gírias e abreviações</p>
+    </div>
+  </div>
+
+  <ul style="font-size: 17px;">
+    <li>Modelo aprendeu a <b>casar embeddings com estilo formal</b> → perdeu o informal.</li>
+    <li>Coerente com Wei et al.: <b>KL ~7.5×</b> entre sintético naive e real → o overfit ao estilo é a consequência empírica.</li>
   </ul>
-  <p style="margin-top: 24px; padding: 16px; background: var(--accent-soft); border-radius: 8px;">
-    <b>Coerente com Wei et al. (Airbnb, 2026):</b> o paper mede que queries sintéticas naive ficam a <b>~7.5× a KL divergência</b> da distribuição real. Aqui observamos a <b>consequência prática</b> dessa distância — V1 brilha em test sintético V1 (mesma distribuição) mas regride em real. Sem o teste real, teríamos saído com a impressão (errada) de que V1 era um sucesso.
-  </p>
 </section>
 
 <!-- ====== 21: POR QUE V2 FUNCIONOU ====== -->
 <section class="slide">
   <h2>9. Discussão</h2>
   <h1>Por que V2 funcionou?</h1>
-  <div class="flex-row">
+  <div class="flex-row" style="margin-top: 16px;">
     <div class="card pos">
-      <div class="label">Seeds reais</div>
-      <p>Dão ao LLM a <b>distribuição estilística correta</b> — terseness, gírias, abreviações. O modelo treinado vê pares (pergunta-estilo-real, pílula) e aprende a alinhar embeddings com o estilo de produção.</p>
+      <div class="label">🌱 Seeds reais</div>
+      <ul style="font-size: 16px; margin: 6px 0; padding-left: 22px;">
+        <li>Dão ao LLM o <b>estilo real</b>: tersos, gírias, abreviações.</li>
+        <li>Embeddings se alinham ao estilo de produção.</li>
+      </ul>
     </div>
     <div class="card pos">
-      <div class="label">Hard negatives</div>
-      <p>MNRL com negativos só in-batch é fácil — distinguir um par dos 31 outros aleatórios é trivial. O <b>negativo similar deliberado</b> força aprender o atributo específico que separa pílulas adjacentes.</p>
+      <div class="label">⚔️ Hard negatives</div>
+      <ul style="font-size: 16px; margin: 6px 0; padding-left: 22px;">
+        <li>In-batch = trivial (31 aleatórios).</li>
+        <li>Negativo similar deliberado → força <b>discriminatividade fina</b>.</li>
+      </ul>
     </div>
   </div>
-  <p style="margin-top: 24px; font-size: 22px; text-align: center;">
-    A combinação <b>seeds + hard negatives</b> faz o modelo alinhar estilo <em>e</em> aprender discriminatividade fina.
+  <p style="margin-top: 20px; font-size: 20px; text-align: center;">
+    <b>Seeds = estilo</b> &nbsp; + &nbsp; <b>hard negatives = precisão</b>
   </p>
 </section>
 
@@ -704,13 +787,28 @@
 <section class="slide">
   <h2>10. Limitações</h2>
   <h1>O que esse trabalho não fez (honestamente)</h1>
-  <ul>
-    <li><b>n=148</b> no test real → CIs largos. R@5/R@10 atingem significância; MRR fica em "tendência".</li>
-    <li><b>LLM-as-judge tem viés</b>: Gemini 2.5 errou 47% dos seus matches (segundo validação humana). Lote da Fase 1 (Gemini 3.5 com reasoning) <b>não foi validado exaustivamente</b>.</li>
-    <li><b>Cobertura do corpus</b>: ~70% das queries reais <b>não têm resposta</b> nas 1.693 pílulas. Mesmo retriever perfeito teria recall máximo ~30% em produção.</li>
-    <li><b>Viés heurístico na extração de seeds</b>: filtros excluem perguntas em forma declarativa, replies, e dependem de classificador LLM. Performance fora desses critérios é desconhecida.</li>
-    <li><b>Generalização externa</b>: um domínio (PT-BR + Ragnarok), uma arquitetura (BGE-M3), um algoritmo (LoRA + MNRL).</li>
-  </ul>
+  <div class="flex-row" style="gap: 14px; margin-top: 10px; flex-wrap: wrap;">
+    <div class="card" style="margin: 0; padding: 10px 14px;">
+      <div class="label" style="color: var(--accent);">📉 n=148</div>
+      <p style="font-size: 15px; margin: 4px 0;">CIs largos. R@5/R@10 significativos; MRR fica em tendência.</p>
+    </div>
+    <div class="card" style="margin: 0; padding: 10px 14px;">
+      <div class="label" style="color: var(--accent);">⚖️ LLM-as-judge tem viés</div>
+      <p style="font-size: 15px; margin: 4px 0;">Gemini 2.5 errou <b>47%</b>. Fase 1 (Gemini 3.5) <b>não</b> foi validada exaustivamente.</p>
+    </div>
+    <div class="card" style="margin: 0; padding: 10px 14px;">
+      <div class="label" style="color: var(--accent);">📚 Cobertura do corpus</div>
+      <p style="font-size: 15px; margin: 4px 0;">~70% das queries reais <b>não têm resposta</b> nas 1.693 pílulas → recall máx ~30%.</p>
+    </div>
+    <div class="card" style="margin: 0; padding: 10px 14px;">
+      <div class="label" style="color: var(--accent);">🔍 Viés na extração de seeds</div>
+      <p style="font-size: 15px; margin: 4px 0;">Filtros heurísticos excluem perguntas declarativas, replies, etc.</p>
+    </div>
+    <div class="card" style="margin: 0; padding: 10px 14px; flex-basis: 100%;">
+      <div class="label" style="color: var(--accent);">🌍 Generalização externa</div>
+      <p style="font-size: 15px; margin: 4px 0;">1 domínio (PT-BR Ragnarok) · 1 arquitetura (BGE-M3) · 1 algoritmo (LoRA + MNRL).</p>
+    </div>
+  </div>
 </section>
 
 <!-- ====== 23: TAKEAWAY ====== -->
